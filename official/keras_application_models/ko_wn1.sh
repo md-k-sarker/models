@@ -25,5 +25,6 @@ export TF_CONFIG='{
 # --dist_strat --distribution_strategy one_device --model densenet121
 # collective_allreduce 
 
+
 # start script for test
 python /ec/fm/disks/aipg_lab_home_pool_03/mdkamruz/code/repos/models/official/keras_application_models/distribution_overview.py 2>&1 | tee ~/worker1_keras_ov.txt
