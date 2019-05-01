@@ -53,7 +53,8 @@ def process_record_dataset(dataset,
                            num_epochs=1,
                            dtype=tf.float32,
                            datasets_num_private_threads=None,
-                           num_parallel_batches=1):
+                           num_parallel_batches=1,
+                           drop_remainder=False):
   """Given a Dataset with raw records, return an iterator over the records.
 
   Args:
@@ -70,6 +71,8 @@ def process_record_dataset(dataset,
     datasets_num_private_threads: Number of threads for a private
       threadpool created for all datasets computation.
     num_parallel_batches: Number of parallel batches for tf.data.
+    drop_remainder: A boolean indicates whether to drop the remainder of the
+      batches. If True, the batch dimension will be static.
 
   Returns:
     Dataset of (image, label) pairs ready for iteration.
@@ -102,7 +105,7 @@ def process_record_dataset(dataset,
   dataset = dataset.map(
       lambda value: parse_record_fn(value, is_training, dtype),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
-  dataset = dataset.batch(batch_size, drop_remainder=False)
+  dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
 
   # Operations between the final prefetch and the get_next call to the iterator
   # will happen synchronously during run time. We prefetch here again to
@@ -416,16 +419,14 @@ def resnet_model_fn(features, labels, mode, model_class,
     return 'batch_normalization' not in name
   loss_filter_fn = loss_filter_fn or exclude_batch_norm
 
-  # Add weight decay to the loss. We need to scale the regularization loss
-  # manually as losses other than in tf.losses and tf.keras.losses don't scale
-  # automatically.
+  # Add weight decay to the loss.
   l2_loss = weight_decay * tf.add_n(
       # loss is computed using fp32 for numerical stability.
       [
           tf.nn.l2_loss(tf.cast(v, tf.float32))
           for v in tf.compat.v1.trainable_variables()
           if loss_filter_fn(v.name)
-      ]) / tf.distribute.get_strategy().num_replicas_in_sync
+      ])
   tf.compat.v1.summary.scalar('l2_loss', l2_loss)
   loss = cross_entropy + l2_loss
 
@@ -524,8 +525,9 @@ def resnet_main(
     shape: list of ints representing the shape of the images used for training.
       This is only used if flags_obj.export_dir is passed.
 
-  Returns:
-    Dict of results of the run.
+  Dict of results of the run.  Contains the keys `eval_results` and
+    `train_hooks`. `eval_results` contains accuracy (top_1) and accuracy_top_5.
+    `train_hooks` is a list the instances of hooks used during training.
   """
 
   model_helpers.apply_clean(flags.FLAGS)
@@ -549,7 +551,8 @@ def resnet_main(
       distribution_strategy=flags_obj.distribution_strategy,
       num_gpus=flags_core.get_num_gpus(flags_obj),
       num_workers=num_workers,
-      all_reduce_alg=flags_obj.all_reduce_alg)
+      all_reduce_alg=flags_obj.all_reduce_alg,
+      num_packs=flags_obj.num_packs)
 
   # Creates a `RunConfig` that checkpoints every 24 hours which essentially
   # results in checkpoints determined only by `epochs_between_evals`.
@@ -605,7 +608,7 @@ def resnet_main(
     return input_function(
         is_training=True,
         data_dir=flags_obj.data_dir,
-        batch_size=distribution_utils.per_device_batch_size(
+        batch_size=distribution_utils.per_replica_batch_size(
             flags_obj.batch_size, flags_core.get_num_gpus(flags_obj)),
         num_epochs=num_epochs,
         dtype=flags_core.get_tf_dtype(flags_obj),
@@ -617,7 +620,7 @@ def resnet_main(
     return input_function(
         is_training=False,
         data_dir=flags_obj.data_dir,
-        batch_size=distribution_utils.per_device_batch_size(
+        batch_size=distribution_utils.per_replica_batch_size(
             flags_obj.batch_size, flags_core.get_num_gpus(flags_obj)),
         num_epochs=1,
         dtype=flags_core.get_tf_dtype(flags_obj))
@@ -625,21 +628,19 @@ def resnet_main(
   train_epochs = (0 if flags_obj.eval_only or not flags_obj.train_epochs else
                   flags_obj.train_epochs)
 
-  use_train_and_evaluate = flags_obj.use_train_and_evaluate or (
-      distribution_strategy.__class__.__name__ in [
-          'CollectiveAllReduceStrategy', 'MultiWorkerMirroredStrategy'])
+  use_train_and_evaluate = flags_obj.use_train_and_evaluate or num_workers > 1
   if use_train_and_evaluate:
     train_spec = tf.estimator.TrainSpec(
         input_fn=lambda input_context=None: input_fn_train(
             train_epochs, input_context=input_context),
         hooks=train_hooks,
         max_steps=flags_obj.max_train_steps)
-    eval_spec = tf.estimator.EvalSpec(input_fn=input_fn_eval,
-                                      steps=flags_obj.max_train_steps)
+    eval_spec = tf.estimator.EvalSpec(input_fn=input_fn_eval)
     tf.compat.v1.logging.info('Starting to train and evaluate.')
-    eval_results, _ = tf.estimator.train_and_evaluate(classifier, train_spec,
-                                                      eval_spec)
-    benchmark_logger.log_evaluation_result(eval_results)
+    tf.estimator.train_and_evaluate(classifier, train_spec, eval_spec)
+    # tf.estimator.train_and_evalute doesn't return anything in multi-worker
+    # case.
+    return {}
   else:
     if train_epochs == 0:
       # If --eval_only is set, perform a single loop with zero train epochs.
@@ -707,13 +708,14 @@ def resnet_main(
   return stats
 
 
-def define_resnet_flags(resnet_size_choices=None):
+def define_resnet_flags(resnet_size_choices=None, dynamic_loss_scale=False):
   """Add flags and validators for ResNet."""
   flags_core.define_base()
   flags_core.define_performance(num_parallel_calls=False,
                                 tf_gpu_thread_mode=True,
                                 datasets_num_private_threads=True,
-                                datasets_num_parallel_batches=True)
+                                datasets_num_parallel_batches=True,
+                                dynamic_loss_scale=dynamic_loss_scale)
   flags_core.define_image()
   flags_core.define_benchmark()
   flags.adopt_module_key_flags(flags_core)
