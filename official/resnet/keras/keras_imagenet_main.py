@@ -129,6 +129,14 @@ def run(flags_obj):
       all_reduce_alg=flags_obj.all_reduce_alg,
       num_packs=flags_obj.num_packs)
 
+  if strategy:
+    # flags_obj.enable_get_next_as_optional controls whether enabling
+    # get_next_as_optional behavior in DistributedIterator. If true, last
+    # partial batch can be supported.
+    strategy.extended.experimental_enable_get_next_as_optional = (
+        flags_obj.enable_get_next_as_optional
+    )
+
   strategy_scope = distribution_utils.get_strategy_scope(strategy)
 
   # pylint: disable=protected-access
@@ -188,32 +196,21 @@ def run(flags_obj):
       # TODO(reedwm): Remove manually wrapping optimizer once mixed precision
       # can be enabled with a single line of code.
       optimizer = tf.keras.mixed_precision.experimental.LossScaleOptimizer(
-          optimizer, loss_scale=flags_core.get_loss_scale(flags_obj))
-
-    if flags_obj.enable_xla and not flags_obj.enable_eager:
-      # TODO(b/129861005): Fix OOM issue in eager mode when setting
-      # `batch_size` in keras.Input layer.
-      if strategy and strategy.num_replicas_in_sync > 1:
-        # TODO(b/129791381): Specify `input_layer_batch_size` value in
-        # DistributionStrategy multi-replica case.
-        input_layer_batch_size = None
-      else:
-        input_layer_batch_size = flags_obj.batch_size
-    else:
-      input_layer_batch_size = None
+          optimizer, loss_scale=flags_core.get_loss_scale(flags_obj,
+                                                          default_for_fp16=128))
 
     if flags_obj.use_trivial_model:
       model = trivial_model.trivial_model(imagenet_main.NUM_CLASSES, dtype)
     else:
       model = resnet_model.resnet50(
           num_classes=imagenet_main.NUM_CLASSES,
-          dtype=dtype,
-          batch_size=input_layer_batch_size)
+          dtype=dtype)
 
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer=optimizer,
                   metrics=(['sparse_categorical_accuracy']
                            if flags_obj.report_accuracy_metrics else None),
+                  run_eagerly=flags_obj.run_eagerly,
                   cloning=flags_obj.clone_model_in_keras_dist_strat)
 
   callbacks = keras_common.get_callbacks(
