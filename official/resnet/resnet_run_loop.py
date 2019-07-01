@@ -561,6 +561,7 @@ def resnet_main(
       intra_op_parallelism_threads=flags_obj.intra_op_parallelism_threads,
       allow_soft_placement=True)
 
+  #note(zaman): distribution strategy is defined here.
   distribution_strategy = distribution_utils.get_distribution_strategy(
       distribution_strategy=flags_obj.distribution_strategy,
       num_gpus=flags_core.get_num_gpus(flags_obj),

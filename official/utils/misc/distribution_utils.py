@@ -79,6 +79,7 @@ def _mirrored_cross_device_ops(all_reduce_alg, num_packs):
   return cross_device_ops_class(num_packs=num_packs)
 
 
+# note(zaman): distribution strategy customization
 def get_distribution_strategy(distribution_strategy="default",
                               num_gpus=0,
                               num_workers=1,
