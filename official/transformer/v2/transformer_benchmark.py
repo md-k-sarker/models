@@ -195,7 +195,7 @@ class TransformerBaseKerasAccuracy(TransformerBenchmark):
     FLAGS.param_set = 'base'
     FLAGS.batch_size = 4096*8
     FLAGS.train_steps = 100000
-    FLAGS.steps_between_evals = 5000
+    FLAGS.steps_between_evals = 20000
     FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu')
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps,
@@ -260,8 +260,8 @@ class TransformerBigKerasAccuracy(TransformerBenchmark):
     FLAGS['bleu_ref'].value = self.bleu_ref
     FLAGS.param_set = 'big'
     FLAGS.batch_size = 3072*8
-    FLAGS.train_steps = 100000
-    FLAGS.steps_between_evals = 5000
+    FLAGS.train_steps = 400000
+    FLAGS.steps_between_evals = 20000
     FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu')
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps,
@@ -284,9 +284,61 @@ class TransformerBigKerasAccuracy(TransformerBenchmark):
     FLAGS.batch_size = 3072*8
     FLAGS.static_batch = True
     FLAGS.max_length = 64
-    FLAGS.train_steps = 100000
-    FLAGS.steps_between_evals = 5000
+    FLAGS.train_steps = 400000
+    FLAGS.steps_between_evals = 20000
     FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu_static_batch')
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps,
+                                   bleu_min=28,
+                                   bleu_max=29)
+
+  def benchmark_8_gpu_static_batch_fp16(self):
+    """Benchmark 8 gpu with static batch and fp16.
+
+      Should converge to 28.4 BLEU (uncased). This has not be verified yet."
+    """
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.dtype = 'fp16'
+    FLAGS.data_dir = self.train_data_dir
+    FLAGS.vocab_file = self.vocab_file
+    # Sets values directly to avoid validation check.
+    FLAGS['bleu_source'].value = self.bleu_source
+    FLAGS['bleu_ref'].value = self.bleu_ref
+    FLAGS.param_set = 'big'
+    FLAGS.batch_size = 3072*8
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    FLAGS.train_steps = 400000
+    FLAGS.steps_between_evals = 20000
+    FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu_static_batch_fp16')
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps,
+                                   bleu_min=28,
+                                   bleu_max=29)
+
+  def benchmark_xla_8_gpu_static_batch_fp16(self):
+    """Benchmark 8 gpu with static batch, XLA, and FP16.
+
+      Should converge to 28.4 BLEU (uncased). This has not be verified yet."
+    """
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.dtype = 'fp16'
+    FLAGS.enable_xla = True
+    FLAGS.data_dir = self.train_data_dir
+    FLAGS.vocab_file = self.vocab_file
+    # Sets values directly to avoid validation check.
+    FLAGS['bleu_source'].value = self.bleu_source
+    FLAGS['bleu_ref'].value = self.bleu_ref
+    FLAGS.param_set = 'big'
+    FLAGS.batch_size = 3072*8
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    FLAGS.train_steps = 400000
+    FLAGS.steps_between_evals = 20000
+    FLAGS.model_dir = self._get_model_dir(
+        'benchmark_xla_8_gpu_static_batch_fp16')
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps,
                                    bleu_min=28,
@@ -346,6 +398,37 @@ class TransformerKerasBenchmark(TransformerBenchmark):
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps)
 
+  def benchmark_1_gpu_fp16(self):
+    """Benchmark 1 gpu FP16."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir('benchmark_1_gpu_fp16')
+    FLAGS.dtype = 'fp16'
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_1_gpu(self):
+    """Benchmark 1 gpu w/xla."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_1_gpu')
+    FLAGS.enable_xla = True
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_1_gpu_fp16(self):
+    """Benchmark 1 gpu w/xla and FP16."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_1_gpu_fp16')
+    FLAGS.enable_xla = True
+    FLAGS.dtype = 'fp16'
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
   def benchmark_1_gpu_static_batch(self):
     """Benchmark 1 gpu with static batch."""
     self._setup()
@@ -354,6 +437,45 @@ class TransformerKerasBenchmark(TransformerBenchmark):
     FLAGS.model_dir = self._get_model_dir('benchmark_1_gpu_static_batch')
     FLAGS.static_batch = True
     FLAGS.max_length = 64
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_1_gpu_static_batch(self):
+    """Benchmark 1 gpu with static batch w/xla."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_1_gpu_static_batch')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    FLAGS.enable_xla = True
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_1_gpu_static_batch_fp16(self):
+    """Benchmark 1 gpu with static batch FP16."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir(
+        'benchmark_1_gpu_static_batch_fp16')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    FLAGS.dtype = 'fp16'
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_1_gpu_static_batch_fp16(self):
+    """Benchmark 1 gpu with static batch w/xla and FP16."""
+    self._setup()
+    FLAGS.num_gpus = 1
+    FLAGS.batch_size = self.batch_per_gpu
+    FLAGS.model_dir = self._get_model_dir(
+        'benchmark_xla_1_gpu_static_batch_fp16')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    FLAGS.enable_xla = True
+    FLAGS.dtype = 'fp16'
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps)
 
@@ -366,12 +488,82 @@ class TransformerKerasBenchmark(TransformerBenchmark):
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
                                    log_steps=FLAGS.log_steps)
 
+  def benchmark_8_gpu_fp16(self):
+    """Benchmark 8 gpu FP16."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.dtype = 'fp16'
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu_fp16')
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_8_gpu(self):
+    """Benchmark 8 gpu w/xla."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.enable_xla = True
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_8_gpu')
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_8_gpu_fp16(self):
+    """Benchmark 8 gpu w/xla and FP16."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.enable_xla = True
+    FLAGS.dtype = 'fp16'
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_8_gpu_fp16')
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
   def benchmark_8_gpu_static_batch(self):
     """Benchmark 8 gpu with static batch."""
     self._setup()
     FLAGS.num_gpus = 8
     FLAGS.batch_size = self.batch_per_gpu * 8
     FLAGS.model_dir = self._get_model_dir('benchmark_8_gpu_static_batch')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_8_gpu_static_batch_fp16(self):
+    """Benchmark 8 gpu with static batch FP16."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.dtype = 'fp16'
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir(
+        'benchmark_8_gpu_static_batch_fp16')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_8_gpu_static_batch(self):
+    """Benchmark 8 gpu with static batch w/xla."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.enable_xla = True
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir('benchmark_xla_8_gpu_static_batch')
+    FLAGS.static_batch = True
+    FLAGS.max_length = 64
+    self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,
+                                   log_steps=FLAGS.log_steps)
+
+  def benchmark_xla_8_gpu_static_batch_fp16(self):
+    """Benchmark 8 gpu with static batch w/xla and FP16."""
+    self._setup()
+    FLAGS.num_gpus = 8
+    FLAGS.enable_xla = True
+    FLAGS.dtype = 'fp16'
+    FLAGS.batch_size = self.batch_per_gpu * 8
+    FLAGS.model_dir = self._get_model_dir(
+        'benchmark_xla_8_gpu_static_batch_fp16')
     FLAGS.static_batch = True
     FLAGS.max_length = 64
     self._run_and_report_benchmark(total_batch_size=FLAGS.batch_size,

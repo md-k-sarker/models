@@ -49,10 +49,9 @@ class BertClassifyBenchmarkBase(benchmark_utils.BertBenchmarkBase):
   """Base class to hold methods common to test classes in the module."""
 
   def __init__(self, output_dir=None):
+    super(BertClassifyBenchmarkBase, self).__init__(output_dir)
     self.num_epochs = None
     self.num_steps_per_epoch = None
-
-    super(BertClassifyBenchmarkBase, self).__init__(output_dir)
 
   @flagsaver.flagsaver
   def _run_bert_classifier(self, callbacks=None):
@@ -72,6 +71,7 @@ class BertClassifyBenchmarkBase(benchmark_utils.BertBenchmarkBase):
         math.ceil(input_meta_data['eval_data_size'] / FLAGS.eval_batch_size))
     strategy = distribution_utils.get_distribution_strategy(
         distribution_strategy='mirrored', num_gpus=self.num_gpus)
+    steps_per_loop = 1
 
     run_classifier.run_customized_training(
         strategy,
@@ -80,6 +80,7 @@ class BertClassifyBenchmarkBase(benchmark_utils.BertBenchmarkBase):
         FLAGS.model_dir,
         epochs,
         steps_per_epoch,
+        steps_per_loop,
         eval_steps,
         warmup_steps,
         FLAGS.learning_rate,
@@ -152,7 +153,7 @@ class BertClassifyBenchmarkReal(BertClassifyBenchmarkBase):
 
     self._setup()
     self.num_gpus = 2
-    FLAGS.model_dir = self._get_model_dir('benchmark_2_gpu_mprc')
+    FLAGS.model_dir = self._get_model_dir('benchmark_2_gpu_mrpc')
     FLAGS.train_data_path = self.train_data_path
     FLAGS.eval_data_path = self.eval_data_path
     FLAGS.input_meta_data_path = self.input_meta_data_path
